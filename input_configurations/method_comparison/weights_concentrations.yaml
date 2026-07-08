@@ -1,0 +1,11 @@
+output_folder: 'results'
+
+# Number of boxes and samples
+box_count: 50
+presence_sample_count: 10
+weight_sample_count: 50
+concentration_sample_count: 10
+
+# Simulation values
+measurement_types: 'weights_concentrations'
+experiment: default

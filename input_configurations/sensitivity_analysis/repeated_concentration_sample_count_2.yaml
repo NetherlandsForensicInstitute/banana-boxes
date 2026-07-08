@@ -1,0 +1,7 @@
+experiment: repeated_concentration_sample_count_2
+repeated_concentration_sample_count: 2
+
+mcmc_settings:
+  mcmc_bounds:
+    concentrations:
+      sigma_upper: 0.08

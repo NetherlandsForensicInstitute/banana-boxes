@@ -1,0 +1,7 @@
+# local versions of "...-example" files
+/input_configurations/local_adjustments.yaml
+run_all_yamls.bat
+run_all_yamls.sh
+
+# simulation results
+/results

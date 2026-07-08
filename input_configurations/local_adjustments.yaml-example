@@ -1,0 +1,25 @@
+output_folder: 'results'
+
+# Number of boxes and samples
+box_count: 150
+presence_sample_count: 20
+weight_sample_count: 4
+concentration_sample_count: 10
+
+# Parameters for the ground truth distributions
+presence_real_p: 0.99
+weight_real_mu: 0.315
+weight_real_sigma: 0.012
+concentration_real_mu: 0.25
+concentration_real_sigma: 0.01
+
+# MCMC settings
+mcmc_settings:
+  mcmc_draw_count: 10
+  mcmc_chain_count: 1
+  mcmc_tune_count: 1000
+  mcmc_save_posteriors: False
+
+# Simulation values
+simulation_count: 10
+alpha: 0.1

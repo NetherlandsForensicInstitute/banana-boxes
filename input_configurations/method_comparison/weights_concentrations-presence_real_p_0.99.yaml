@@ -1,0 +1,14 @@
+output_folder: 'results'
+
+# Number of boxes and samples
+box_count: 50
+presence_sample_count: 10
+weight_sample_count: 50
+concentration_sample_count: 10
+
+# Parameters for the ground truth distributions
+presence_real_p: 0.99
+
+# Simulation values
+measurement_types: 'weights_concentrations'
+experiment: presence_real_p_0.99

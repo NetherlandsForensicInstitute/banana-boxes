@@ -1,0 +1,14 @@
+output_folder: 'results'
+
+# Number of boxes and samples
+box_count: 100
+presence_sample_count: 20
+weight_sample_count: 20
+concentration_sample_count: 10
+
+# Parameters for the ground truth distributions
+alpha: 0.1
+
+# Simulation values
+measurement_types: 'weights_presences'
+experiment: alpha_0.1

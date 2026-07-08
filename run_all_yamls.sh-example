@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+# Script for Linux users to perform the simulations on multiple yaml-files, and empty the pytensor cache between runs.
+# Rename the script to run_all_yamls.sh to use it.
+# The results for each run will be placed in a separate folder. If you want to use create_overview_results on these
+# folders, place them together in a folder and use this as results_dir.
+
+set -euo pipefail
+
+# path to python interpreter, best to use a virtual environment
+PYTHON="/home/username/PycharmProjects/project_name/.venv/bin/python3"
+
+# directory to the folders with yaml files
+INPUT_DIR_1="/home/username/PycharmProjects/project_name/input_configurations/sensitivity_analysis"
+INPUT_DIR_2="/home/username/PycharmProjects/project_name/input_configurations/method_comparison"
+
+for yaml in "$INPUT_DIR_1"/*.yaml; do
+  echo "Running model with $yaml"
+  "$PYTHON" main.py -no_default_run -run_single_yaml -yaml_file "$yaml"
+done
+
+for yaml in "$INPUT_DIR_2"/*.yaml; do
+  echo "Running model with $yaml"
+  "$PYTHON" main.py -no_default_run -run_single_yaml -yaml_file "$yaml"
+done

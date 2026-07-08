@@ -1,0 +1,24 @@
+:: Script for Windows users to perform simulations on multiple yaml-files, and empty the pytensor cache between runs.
+:: Rename the script to run_all_yamls.bat to use it.
+:: The results for each run will be placed in a separate folder. If you want to use create_overview_results on these
+:: folders, place them together in a folder and use this as results_dir.
+
+@echo off
+
+:: Make sure the path to the repo matches your location
+cd C:\path\to\location\of\your\repo\
+:: A virtual environment is assumed to be there as well
+call .venv\Scripts\activate.bat
+
+for %%y in (input_configurations\sensitivity_analysis\*.yaml) do (
+   echo Running model with %%y
+   python main.py -no_default_run -run_single_yaml -yaml_file %%y
+)
+
+for %%y in (input_configurations\method_comparison\*.yaml) do (
+   echo Running model with %%y
+   python main.py -no_default_run -run_single_yaml -yaml_file %%y
+)
+
+deactivate
+exit

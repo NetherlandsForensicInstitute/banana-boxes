@@ -1,0 +1,17 @@
+# MCMC settings
+mcmc_settings:
+  mcmc_draw_count: 1000
+  mcmc_chain_count: 4
+  mcmc_tune_count: 1000
+  mcmc_save_posteriors: False
+  mcmc_bounds:
+    weights:
+      mu_lower: 0.25
+      mu_upper: 0.40
+      sigma_lower: 0.001
+      sigma_upper: 0.080
+    concentrations:
+      mu_lower: 0.2
+      mu_upper: 0.3
+      sigma_lower: 0.001
+      sigma_upper: 0.040
