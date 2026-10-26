@@ -16,10 +16,11 @@ Banana boxes
 
 ### Modelling approaches
 
-This repository currently supports the evaluation of five modelling approaches:
+This repository currently supports the evaluation of six modelling approaches:
 - An existing frequentist approach, using weight and drug-presence measurements, based on a tool from ENFSI.
 - An existing frequentist approach, using weight and drug-presence measurements, based on a tool from SWGDRUG.
 - An existing frequentist approach, using weight and drug-presence measurements, based on Alberink _et al._ (2010).
+- A novel frequentist approach, using weight and drug-presence measurements, an extension of the SWGDRUG approach.
 - An existing frequentist approach, using weight and concentration measurements, based on Alberink _et al._ (2016).
 - A novel Bayesian approach, using weight, drug-presence and concentration measurements, and using MCMC-simulations.
 
@@ -50,7 +51,7 @@ There are two ways to run the simulations: via the Python command line, or using
   - `-run_sensitivity_analysis`:  
   Run the simulations specified by all yaml-files located in the folder `input_configurations/sensitivity_analysis`.
   - `-create_overview_results`, in combination with `-results_dir` and `path/to/folder`:  
-  Make an overview table of all simulations results located in the sub-folders of the folder `path/to/folder`.
+  Make an overview table of all simulation results located in the sub-folders of the folder `path/to/folder`.
 - The four `-run_...` arguments should not be combined; use only one of them at a time.
   - If any of them is used, `-results_dir` is overwritten with the output folder of that run-argument.
 - Some example usages:
@@ -78,6 +79,19 @@ There are two ways to run the simulations: via the Python command line, or using
     - Location of folder(s) with simulation yaml-files to run
   - Execute the `.bat` or `.sh` file
 
+### Managing many simulation cases
+Several additional input arguments are supported to handle the inputs and outputs when many simulation cases are run.
+- Inputs (yaml-files):
+  - `-create_yaml_files`, in combination with `-yaml_parameter_settings` and `path/to/file.yaml`.  
+  Create the yaml-files that are used for the sensitivity analysis, based on the changes defined in `file.yaml`.  
+  - `-copy_yaml_files`, in combination with `-folder_yaml_files`, `path/to/folder`, `-number_of_copies` and `number`.  
+  Make `number` of copies of all yaml-files located in the folder `path/to/folder`.  
+  This can be used to split a single big simulation in multiple smaller ones, so cache can be cleared in between. 
+- Outputs (result folders):
+  - `-merge_simulation_results`, in combination with `-results_dir` and `path/to/folder`:  
+  Merge simulation results obtained with identical yaml-files, located in the folder `path/to/folder`.  
+  This can be used to combine the results obtained when running multiple smaller copies of a single big simulation.
+
 ### Description of other folders and files
 
 - `tests`: Folder with several files that contain multiple tests, to verify the implementations of the modelling approaches.  
@@ -85,16 +99,22 @@ There are two ways to run the simulations: via the Python command line, or using
 - `boundary_methods.py`: Functions to calculate the relevant percentiles, based on weights, presences, and concentrations.
   - `calculate_percentiles_enfsi`: Using ENFSI approach: lower bound, best estimate, and upper bound.
   - `calculate_percentile_swgdrug`: Using SWGDRUG approach: lower bound.
+  - `calculate_percentiles_hyper_t`: Using the Hyper-t approach: lower bound, best estimate, and upper bound.
   - `calculate_percentiles_alberink2010`: Using approach from Alberink _et al._ (2010): lower bound, best estimate, and upper bound
   - `calculate_percentiles_alberink2016`: Using approach from Alberink _et al._ (2016): lower bound, best estimate, and upper bound
   - `calculate_percentiles_bayesian`: Using novel Bayesian approach: lower bound, best estimate (median), upper bound.
-- `simulation_steps`: Functions used to execute distinct parts of a simulation.
+- `simulation_steps.py`: Functions used to execute distinct parts of a simulation.
   - `process_cfg`: Process a configuration file (`file.yaml`) into input variables used for a simulation.
   - `run_single_simulation`: Do a single simulation run: generate ground truth, sample from it, apply methods.
   - `aggregate_simulation_results`: Summarise the results of a simulation, by aggregating over its runs.
   - `save_aggregated_results`: Save the aggregated results as csv-file including rounding, do some MCMC-checks.
-- `utils`: Functions to perform various supporting tasks.
+  - `merge_simulation_results`: Merge the simulation results of obtained with identical input yaml-files.
+- `utils.py`: Functions to perform various supporting tasks.
   - `lower_bound_hyper`: Determine lower bound for number of drug-containing units, using a hypergeometric distribution.
+  - `upper_bound_hyper`: Determine upper bound for number of drug-containing units, using a hypergeometric distribution.
   - `draw_normal_mcmc_samples`: Draw samples from a normal distribution using MCMC-simulations.
   - `get_dirs_per_measurement_types`: Make lists of sub-folders with results, grouped by measurements types present.
   - `create_overview_results`: Make an overview table of all simulations results located in a specific folder.
+  - `read_yaml`: Read an existing yaml-file.
+  - `create_yaml_files`: Create yaml-files that can be used to perform a sensitivity analysis.
+  - `copy_yaml_files`: Make multiple copies of all yaml-files present in a specific folder.

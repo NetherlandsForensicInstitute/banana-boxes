@@ -1,7 +1,2 @@
 experiment: weight_real_mu_0.4
 weight_real_mu: 0.4
-mcmc_settings:
-  mcmc_bounds:
-    weights:
-      mu_lower: 0.15
-      mu_upper: 0.5

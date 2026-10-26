@@ -1,7 +1,2 @@
 concentration_sample_count: 5
 experiment: concentration_sample_count_5
-
-mcmc_settings:
-  mcmc_bounds:
-    concentrations:
-      sigma_upper: 0.08

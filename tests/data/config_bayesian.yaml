@@ -3,15 +3,13 @@ mcmc_settings:
   mcmc_draw_count: 1000
   mcmc_chain_count: 4
   mcmc_tune_count: 1000
+  mcmc_prior_factor: 5
+  mcmc_target_accept: 0.9
   mcmc_save_posteriors: False
-  mcmc_bounds:
+  mcmc_priors:
     weights:
-      mu_lower: 0.25
-      mu_upper: 0.40
-      sigma_lower: 0.001
-      sigma_upper: 0.080
+      mu: 'normal'
+      sigma: 'half-cauchy'
     concentrations:
-      mu_lower: 0.2
-      mu_upper: 0.3
-      sigma_lower: 0.001
-      sigma_upper: 0.040
+      mu: 'normal'
+      sigma: 'half-cauchy'

@@ -1,0 +1,21 @@
+# File to indicate which parameters to vary in the simulations. The parameter settings in the config files are
+# the default values. The parameters are varied one by one, keeping all other parameter values equal to the default
+# values.
+
+# Number of boxes and samples
+box_count: [500, 2000]
+presence_sample_count: [100, 500]
+weight_sample_count: [3, 10]
+concentration_sample_count: [5, 20]
+repeated_concentration_sample_count: [2, 5]
+
+# Parameters for the ground truth distributions
+presence_real_p: [0.95, 1]
+weight_real_mu: [0.250, 0.400]
+weight_real_sigma: [0.005, 0.020]
+concentration_real_mu: [0.20, 0.30]
+concentration_real_sigma: [0.005, 0.02]
+repeated_concentration_real_sigma: [0.01, 0.05]
+
+# Simulation values
+alpha: [0.01, 0.10]

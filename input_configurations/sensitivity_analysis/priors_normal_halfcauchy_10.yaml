@@ -1,0 +1,11 @@
+experiment: priors_normal_halfcauchy_10
+mcmc_settings:
+  mcmc_prior_factor: 10
+  mcmc_priors:
+    weights:
+      mu: 'normal'
+      sigma: 'half-cauchy'
+    concentrations:
+      mu: 'normal'
+      sigma: 'half-cauchy'
+  mcmc_target_accept: 0.9

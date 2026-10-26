@@ -9,8 +9,8 @@ from confidence import Configuration
 from tqdm import tqdm
 import logging
 
-from simulation_steps import process_cfg, run_single_simulation, aggregate_simulation_results, save_aggregated_results
-from utils import create_overview_results
+from simulation_steps import process_cfg, run_single_simulation, merge_simulation_results, aggregate_simulation_results, save_aggregated_results
+from utils import create_overview_results, create_yaml_files, copy_yaml_files
 
 
 def run_simulations(cfg: Configuration, output_folder: str) -> None:
@@ -46,7 +46,7 @@ def run_simulations(cfg: Configuration, output_folder: str) -> None:
 
     # Save all detailed results in a csv-file; a row per simulation run.
     results_df = pd.DataFrame(results_list)
-    results_df_save = results_df.round(2)
+    results_df_save = results_df.round(4)
     file_name = 'simulation_results-' + cfg.measurement_types + '.csv'
     results_df_save.to_csv(output_folder / file_name, index=False)
 
@@ -71,6 +71,18 @@ if __name__ == '__main__':
     parser.add_argument('-no_default_run',
                         help='Do not run default experiment with default config settings',
                         action='store_true')
+    parser.add_argument('-create_yaml_files',
+                        help='Create yaml files based on yaml_parameter_settings',
+                        action='store_true')
+    parser.add_argument('-yaml_parameter_settings',
+                        help='Yaml with all parameter settings to vary',
+                        default='input_configurations/sensitivity_analysis_settings.yaml')
+    parser.add_argument('-copy_yaml_files',
+                        help='Make number_of_copies copies of all yaml files in folder_yaml_files',
+                        action='store_true')
+    parser.add_argument('-number_of_copies',
+                        help='Number of copies to generate for each yaml file',
+                        default=10)
     parser.add_argument('-run_sensitivity_analysis',
                         help='Run experiments with all yaml files in the sensitivity_analysis folder',
                         action='store_true')
@@ -83,6 +95,9 @@ if __name__ == '__main__':
     parser.add_argument('-folder_yaml_files',
                         help='Folder containing yaml files, used with parameter run_all_yaml_files_in_folder',
                         default='input_configurations/method_comparison')
+    parser.add_argument('-merge_simulation_results',
+                        help='Merge simulation results in results_dir',
+                        action='store_true')
     parser.add_argument('-create_overview_results',
                         help='Create overview results of all aggregated results in results_dir',
                         action='store_true')
@@ -106,6 +121,12 @@ if __name__ == '__main__':
         # Run the simulation with the default configuration
         output_folder_exp = f'{output_folder_base}/{str(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))}'
         run_simulations(config, output_folder_exp)
+
+    if args.create_yaml_files:
+        create_yaml_files(args.yaml_parameter_settings, 'input_configurations/sensitivity_analysis')
+
+    if args.copy_yaml_files:
+        copy_yaml_files(Path(args.folder_yaml_files), int(args.number_of_copies))
 
     if args.run_sensitivity_analysis:
         for yaml in os.listdir('input_configurations/sensitivity_analysis'):
@@ -136,6 +157,9 @@ if __name__ == '__main__':
 
     if args.create_overview_results:
         create_overview_results(results_dir=args.results_dir)
+
+    if args.merge_simulation_results:
+        merge_simulation_results(results_dir=Path(args.results_dir))
 
     if args.run_single_yaml:
         config = confidence.loadf('input_configurations/default_case.yaml',

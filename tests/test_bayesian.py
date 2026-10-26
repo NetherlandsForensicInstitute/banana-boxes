@@ -33,7 +33,7 @@ def test_bayesian_defaults():
     percentages, percentiles, diagnostics = calculate_percentiles_bayesian(
         box_count, presence_sample, weight_sample, concentration_sample, alpha, data_dir, **mcmc_settings)
     assert np.allclose(percentages, [2.5, 50.0, 97.5])
-    assert np.allclose(percentiles, [6.17738878, 7.37246005, 8.17048113])
+    assert np.allclose(percentiles, [6.19161259, 7.37947384, 8.19697207])
 
 
 def test_bayesian_box_count():
@@ -43,7 +43,7 @@ def test_bayesian_box_count():
     percentages, percentiles, diagnostics = calculate_percentiles_bayesian(
         box_count, presence_sample, weight_sample, concentration_sample, alpha, data_dir, **mcmc_settings)
     assert np.allclose(percentages, [2.5, 50.0, 97.5])
-    assert np.allclose(percentiles, [3.15768799, 3.69706135, 4.06244103])
+    assert np.allclose(percentiles, [3.17372699, 3.69821854, 4.07916586])
 
 
 def test_bayesian_presences():
@@ -53,7 +53,7 @@ def test_bayesian_presences():
     percentages, percentiles, diagnostics = calculate_percentiles_bayesian(
         box_count, presence_sample, weight_sample, concentration_sample, alpha, data_dir, **mcmc_settings)
     assert np.allclose(percentages, [2.5, 50.0, 97.5])
-    assert np.allclose(percentiles, [4.61888477, 5.96271284, 7.01102698])
+    assert np.allclose(percentiles, [4.61988202, 5.96103225, 7.04079353])
 
 
 def test_bayesian_weights():
@@ -63,7 +63,7 @@ def test_bayesian_weights():
     percentages, percentiles, diagnostics = calculate_percentiles_bayesian(
         box_count, presence_sample, weight_sample, concentration_sample, alpha, data_dir, **mcmc_settings)
     assert np.allclose(percentages, [2.5, 50.0, 97.5])
-    assert np.allclose(percentiles, [6.29144567, 7.42013933, 8.16435755])
+    assert np.allclose(percentiles, [6.26459704, 7.43104685, 8.17879252])
 
 
 def test_bayesian_concentrations():
@@ -73,7 +73,7 @@ def test_bayesian_concentrations():
     percentages, percentiles, diagnostics = calculate_percentiles_bayesian(
         box_count, presence_sample, weight_sample, concentration_sample, alpha, data_dir, **mcmc_settings)
     assert np.allclose(percentages, [2.5, 50.0, 97.5])
-    assert np.allclose(percentiles, [6.27006304, 7.5890561 , 8.56941953])
+    assert np.allclose(percentiles, [5.98699971, 7.57265971, 8.98395738])
 
 
 def test_bayesian_alpha():
@@ -83,7 +83,7 @@ def test_bayesian_alpha():
     percentages, percentiles, diagnostics = calculate_percentiles_bayesian(
         box_count, presence_sample, weight_sample, concentration_sample, alpha, data_dir, **mcmc_settings)
     assert np.allclose(percentages, [5, 50.0, 95])
-    assert np.allclose(percentiles, [6.38790779, 7.37246005, 8.04786843])
+    assert np.allclose(percentiles, [6.43540828, 7.37947384, 8.03754582])
 
 
 def test_bayesian_rng():
@@ -92,7 +92,7 @@ def test_bayesian_rng():
     percentages, percentiles, diagnostics = calculate_percentiles_bayesian(
         box_count, presence_sample, weight_sample, concentration_sample, alpha, data_dir, **mcmc_settings)
     assert np.allclose(percentages, [2.5, 50.0, 97.5])
-    assert np.allclose(percentiles, [6.21380296, 7.38847838, 8.15848056])
+    assert np.allclose(percentiles, [6.18985075, 7.36882673, 8.16407394])
 
 
 pytest.main()
