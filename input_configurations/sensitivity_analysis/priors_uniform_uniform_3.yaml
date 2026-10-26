@@ -1,0 +1,11 @@
+experiment: priors_uniform_uniform_3
+mcmc_settings:
+  mcmc_prior_factor: 3
+  mcmc_priors:
+    weights:
+      mu: 'uniform'
+      sigma: 'uniform'
+    concentrations:
+      mu: 'uniform'
+      sigma: 'uniform'
+  mcmc_target_accept: 0.8

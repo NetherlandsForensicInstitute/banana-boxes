@@ -9,7 +9,8 @@ from boundary_methods import (calculate_percentiles_bayesian,
                               calculate_percentiles_enfsi,
                               calculate_percentiles_alberink2010,
                               calculate_percentiles_alberink2016,
-                              calculate_percentile_swgdrug)
+                              calculate_percentile_swgdrug,
+                              calculate_percentiles_hyper_t)
 
 
 def process_cfg(cfg: Configuration, output_folder: Path) -> tuple[np.random.Generator, list[str], dict, int, int, int]:
@@ -62,9 +63,9 @@ def process_cfg(cfg: Configuration, output_folder: Path) -> tuple[np.random.Gene
         methods = ['bayesian']
     elif cfg.measurement_types == 'weights_presences':
         # A comparison between the bayesian method and frequentist methods that use weight and drug-presence
-        # measurements only (so no concentration measurements). The relevant methods are: 'enfsi', 'alberink2010', and
-        # 'swgdrug'.
-        methods = ['bayesian', 'enfsi', 'alberink2010', 'swgdrug']
+        # measurements only (so no concentration measurements). The relevant methods are: 'enfsi', 'alberink2010',
+        # 'swgdrug' and 'hyper_t'.
+        methods = ['bayesian', 'enfsi', 'alberink2010', 'swgdrug', 'hyper_t']
     elif cfg.measurement_types == 'weights_concentrations':
         # A comparison between the bayesian method and frequentist methods that use weight and concentration
         # measurements only (so no drug-presence measurements). The relevant method is: 'alberink2016'.
@@ -139,8 +140,8 @@ def run_single_simulation(cfg: Configuration, output_folder: Path,
     presence_simulation = rng.binomial(1, cfg.presence_real_p, cfg.box_count)
     weight_simulation = rng.normal(cfg.weight_real_mu, cfg.weight_real_sigma, cfg.box_count)
     if cfg.measurement_types == 'weights_presences':
-        # No concentration measurements; set all at the average concentration.
-        concentration_simulation = np.ones(cfg.box_count) * cfg.concentration_real_mu
+        # No concentration measurements; set all concentration values at one (100%, full weight counts as drugs).
+        concentration_simulation = np.ones(cfg.box_count)
     else:
         concentration_simulation = rng.normal(cfg.concentration_real_mu, cfg.concentration_real_sigma,
                                               cfg.box_count)
@@ -235,6 +236,24 @@ def run_single_simulation(cfg: Configuration, output_folder: Path,
             'in swgdrug one-sided interval': int(total_weight_simulation >= percentiles_swgdrug[0])
             if not np.isnan(percentiles_swgdrug[0]) else np.nan})
 
+    if 'hyper_t' in methods:
+        # Results from the hyper_t-method
+        percentages_hypert, percentiles_hypert, best_estimate_hypert = calculate_percentiles_hyper_t(
+            cfg.box_count, presence_simulation_sample, weight_simulation_sample, cfg.alpha)
+        percentiles_hypert = [i * concentration_simulation_sample[0] for i in percentiles_hypert]
+        best_estimate_hypert = best_estimate_hypert * concentration_simulation_sample[0]
+        result_dict.update({
+            f'hyper_t {percentages_hypert[0]}% lower bound': percentiles_hypert[0],
+            'hyper_t best estimate': best_estimate_hypert,
+            f'hyper_t {percentages_hypert[1]}% upper bound': percentiles_hypert[1],
+            'hyper_t error best estimate': best_estimate_hypert - total_weight_simulation,
+            'hyper_t interval width': percentiles_hypert[1] - percentiles_hypert[0],
+            'in hyper_t two-sided interval': int((total_weight_simulation >= percentiles_hypert[0]) and
+                                                 (total_weight_simulation <= percentiles_hypert[1]))
+            if not np.isnan(percentiles_hypert[0]) else np.nan,
+            'in hyper_t one-sided interval': int(total_weight_simulation >= percentiles_hypert[0])
+            if not np.isnan(percentiles_hypert[0]) else np.nan})
+
     if 'alberink2016' in methods:
         # Results from the Alberink2016-method
         repeated_concentration_simulation_sample = repeated_concentration_simulation_sample * presence_simulation_sample
@@ -255,12 +274,22 @@ def run_single_simulation(cfg: Configuration, output_folder: Path,
 
     # Add MCMC-diagnostics to output
     if 'bayesian' in methods:
+        extreme_fractions = diagnostics[['fraction_extreme_upper','fraction_extreme_lower']]
+        max_fraction = extreme_fractions.max(axis=None)
+        if max_fraction > 0:
+            max_index = extreme_fractions.max(axis=1) == max_fraction
+            max_type = diagnostics['sample_type'].values[max_index][0]
+            max_parameter = extreme_fractions.index.values[max_index][0]
+            max_side = extreme_fractions.columns.values[extreme_fractions.max(axis=0) == max_fraction][0][-5:]
+            max_bound = f'{max_type} {max_parameter} {max_side}'
+        else:
+            max_bound = ''
         result_dict.update({
             'MCMC max R_hat': diagnostics['r_hat'].max(),
             'MCMC min ESS-bulk': diagnostics['ess_bulk'].min(),
             'MCMC min ESS-tail': diagnostics['ess_tail'].min(),
-            'MCMC max fraction extreme values':
-                (diagnostics['fraction_extreme_upper'] + diagnostics['fraction_extreme_lower']).max()
+            'MCMC max fraction extreme values': max_fraction,
+            'MCMC max fraction extreme bound': max_bound,
         })
 
     return result_dict
@@ -363,8 +392,8 @@ def save_aggregated_results(aggregated_results_list: list[dict], output_folder: 
     # Save aggregated results, number of digits depends on column
     aggregated_results_df = pd.DataFrame(aggregated_results_list).drop_duplicates()
     aggregated_results_df = aggregated_results_df.round({'mean_real_weight': 2,
-           '95%_upper_bound_MCMC_max_Rhat': 2, '5%_lower_bound_MCMC_min_ESSbulk': 2,
-           '5%_lower_bound_MCMC_min_ESStail': 2, '95%_pctl_max_extreme_values': 3,
+           '95%_upper_bound_MCMC_max_Rhat': 3, '5%_lower_bound_MCMC_min_ESSbulk': 0,
+           '5%_lower_bound_MCMC_min_ESStail': 0, '95%_pctl_max_extreme_values': 3,
            'mean_abs_deviation_best_estimate': 2,
            'std_abs_deviation_best_estimate': 2, 'mean_deviation_best_estimate': 2,
            'std_mean_deviation_best_estimate': 2, 'mean_width': 2, 'std_width': 2,
@@ -382,3 +411,43 @@ def save_aggregated_results(aggregated_results_list: list[dict], output_folder: 
         print('WARNING: at least one 5%-percentile of the minimum ESS-tail is below 400.')
     if aggregated_results_df['95%_pctl_max_extreme_values'].max() > 0.01:
         print('WARNING: at least one 95%-percentile of the extreme values exceeds 0.01.')
+
+
+def merge_simulation_results(results_dir: Path):
+    """
+    Merge the simulations present in multiple csv files into a single csv file with accompanying overview file.
+    """
+
+    # Find cfg's with exactly the same contents
+    all_configs = results_dir.rglob("config.yaml")
+    same_cfgs = {}
+    for config_path in all_configs:
+        new_cfg = True
+        new_cfg_name = config_path.parent
+        cfg = confidence.loadf(config_path)
+        for cfg_name, cfg_dict in same_cfgs.items():
+            if cfg_dict['cfg'] == cfg:
+                cfg_dict['name'].append(new_cfg_name)
+                new_cfg = False
+        if new_cfg:
+            same_cfgs[new_cfg_name] = {'cfg': cfg, 'name': [new_cfg_name]}
+    for cfg_name, cfg_dict in same_cfgs.items():
+        # Read the simulation csv's and merge them into a single csv
+        cfg = cfg_dict['cfg']
+        results_df = pd.DataFrame([])
+        file_name = "simulation_results-" + cfg.measurement_types + ".csv"
+        for simulations in cfg_dict['name']:
+            results_df = pd.concat([results_df, pd.read_csv(simulations / file_name)])
+        # Save it to a new folder, along with the overview csv file
+        output_folder = cfg_name.parent.parent / 'merged' / cfg_name.parent.name
+        Path(output_folder).mkdir(parents=True, exist_ok=True)
+        results_df.to_csv(output_folder / file_name, index=False)
+        # Gather the aggregated results (mean, std, or quantile) for all methods in a single overview; a method per row.
+        _, methods, _, presence_sample_count, weight_sample_count, concentration_sample_count = process_cfg(cfg, output_folder)
+        aggregated_results_list = []
+        for method in methods:
+            aggregated_results_dict = aggregate_simulation_results(cfg, method, results_df, presence_sample_count,
+                                                                   weight_sample_count, concentration_sample_count)
+            aggregated_results_list.append(aggregated_results_dict)
+        # Convert results overview to dataframe, save to csv, check some diagnostics
+        save_aggregated_results(aggregated_results_list, output_folder)

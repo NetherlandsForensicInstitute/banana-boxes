@@ -1,7 +1,2 @@
 concentration_real_mu: 0.3
 experiment: concentration_real_mu_0.3
-mcmc_settings:
-  mcmc_bounds:
-    concentrations:
-      mu_lower: 0.25
-      mu_upper: 0.35

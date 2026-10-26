@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import t, norm
 
-from utils import draw_normal_mcmc_samples, lower_bound_hyper
+from utils import draw_normal_mcmc_samples, lower_bound_hyper, upper_bound_hyper
 
 
 def calculate_percentiles_enfsi(box_count: int,
@@ -197,6 +197,65 @@ def calculate_percentile_swgdrug(box_count: int,
     return percentage, percentile
 
 
+def calculate_percentiles_hyper_t(box_count: int,
+                                  presence_sample: np.ndarray,
+                                  weight_sample: np.ndarray,
+                                  alpha: float) -> tuple[list[float], list[float], float]:
+    """
+    Calculate the percentiles of the total drug weight corresponding to the given level of significance,
+    using the hyper-t approach (see article Van der Ham et al.), together with the best estimate
+
+    Parameters
+    ----------
+    box_count: int
+        The total number of boxes.
+    presence_sample: np.ndarray
+        A sample indicating the presence of drugs (0's and 1's).
+    weight_sample: np.ndarray
+        A sample of the weights of the boxes.
+    alpha: float
+        The level of significance.
+
+    Returns
+    -------
+    tuple[list[float], list[float], float]
+        Two lists: a list with the percentage corresponding to the given level of significance, for example,
+        when alpha is 0.1, the list [5, 95], a list of the resulting percentiles of the total drug weights
+        corresponding with these percentages.
+        Float: best estimate of the total drug weight.
+    """
+
+    # No weights of zero allowed in the input
+    assert np.count_nonzero(weight_sample) == weight_sample.shape[0], "No zeros allowed in weight samples."
+
+    presence_sample_count = presence_sample.shape[0]
+    weight_sample_count = weight_sample.shape[0]
+    drug_free_sample_count = presence_sample.shape[0] - np.count_nonzero(presence_sample)
+
+    n = box_count
+    m_p = presence_sample_count
+    m_w = weight_sample_count
+    r = drug_free_sample_count
+
+    k_best_estimate = ((m_p-r)/m_p) * n
+    # We use a best estimate for k that is not necessary an integer, but which is the most logical value
+    best_estimate = k_best_estimate * np.mean(weight_sample)
+
+    # calculate lower and upper bound
+    k_lb = lower_bound_hyper(n, m_p, m_p - r, alpha / 4)
+    k_ub = upper_bound_hyper(n, m_p, m_p - r, alpha / 4)
+
+    lower_bound = k_lb * (np.mean(weight_sample) - sqrt(np.var(weight_sample, ddof=1) / m_w) * t.ppf(1-alpha/4, m_w-1)
+                          * sqrt((n-m_w)/n))
+    upper_bound = k_ub * (np.mean(weight_sample) + sqrt(np.var(weight_sample, ddof=1) / m_w) * t.ppf(1-alpha/4, m_w-1)
+                          * sqrt((n-m_w)/n))
+
+    percentages = [100 * alpha/2, 100 * (1 - alpha/2)]
+    percentiles = [lower_bound, upper_bound]
+
+    return percentages, percentiles, best_estimate
+
+
 def calculate_percentiles_alberink2016(box_count: int,
                                        weight_sample: np.ndarray,
                                        repeated_concentration_sample: np.ndarray,
@@ -283,7 +342,7 @@ def calculate_percentiles_bayesian(box_count: int,
                                    concentration_sample: np.ndarray,
                                    alpha: float,
                                    output_folder: Path,
-                                   mcmc_bounds: dict[str, dict],
+                                   mcmc_priors: dict[str, dict],
                                    mcmc_rng: np.random.Generator = np.random.default_rng(),
                                    mcmc_draw_count: int = 1000,
                                    mcmc_chain_count: int = 4,
@@ -307,8 +366,8 @@ def calculate_percentiles_bayesian(box_count: int,
         The resulting credibility interval will be a (1-alpha)*100% credibility interval.
     output_folder: Path
         The path to the output folder.
-    mcmc_bounds: dict[str, dict]
-        Two sets (weights & concentrations) of four boundaries (mu & sigma, lower & upper) for the MCMC parameters.
+    mcmc_priors: dict[str, dict]
+        Two sets (weights & concentrations) of prior distributions for the two MCMC parameters (mu & sigma).
     mcmc_rng: np.random.Generator
         Numpy random number generator used during MCMC simulations.
     mcmc_draw_count: int
@@ -342,11 +401,11 @@ def calculate_percentiles_bayesian(box_count: int,
 
     # Run MCMC simulation for the weights, assumed to be normally distributed with uniform priors for mu and sigma.
     # The boundary values for the priors are based on the observed values.
-    bounds = mcmc_bounds['weights']
     diagnostics = pd.DataFrame()
     if not mcmc_no_weight:
+        priors = mcmc_priors['weights']
         weight_trace_mu, weight_trace_sigma, weight_diagnostics = draw_normal_mcmc_samples(
-            weight_sample, bounds['mu_lower'], bounds['mu_upper'], bounds['sigma_lower'], bounds['sigma_upper'],
+            weight_sample, priors['mu'], priors['sigma'],
             'weight', output_folder, mcmc_rng, mcmc_draw_count, mcmc_chain_count, **mcmc_kwargs)
         # Draw weights from the MCMC results.
         weight_mcmc = mcmc_rng.normal(loc=weight_trace_mu, scale=weight_trace_sigma,
@@ -358,9 +417,9 @@ def calculate_percentiles_bayesian(box_count: int,
 
     # Perform a similar MCMC simulation for the concentrations
     if not mcmc_no_concentration:
-        bounds = mcmc_bounds['concentrations']
+        priors = mcmc_priors['concentrations']
         concentration_trace_mu, concentration_trace_sigma, concentration_diagnostics = draw_normal_mcmc_samples(
-            concentration_sample, bounds['mu_lower'], bounds['mu_upper'], bounds['sigma_lower'], bounds['sigma_upper'],
+            concentration_sample, priors['mu'], priors['sigma'],
             'concentration', output_folder, mcmc_rng, mcmc_draw_count, mcmc_chain_count, **mcmc_kwargs)
         # Draw concentrations from the MCMC results.
         concentration_mcmc = mcmc_rng.normal(loc=concentration_trace_mu, scale=concentration_trace_sigma,

@@ -1,7 +1,2 @@
 concentration_real_sigma: 0.02
 experiment: concentration_real_sigma_0.02
-
-mcmc_settings:
-  mcmc_bounds:
-    concentrations:
-      sigma_upper: 0.08

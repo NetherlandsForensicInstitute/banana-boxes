@@ -1,4 +1,5 @@
 import os
+import shutil
 import warnings
 from collections import defaultdict
 from pathlib import Path
@@ -50,22 +51,60 @@ def lower_bound_hyper(total_count: int,
                                             for total_positive_count in range(0, total_count + 1)])
 
     # Determine where the cumulative probability is smaller than 1 - alpha.
-    lower_bound = int(np.min(np.where(cumulative_distribution_hyp <= 1 - alpha)))
+    lower_bound = int(np.min(np.where(cumulative_distribution_hyp < 1 - alpha)))
 
     return lower_bound
 
 
+def upper_bound_hyper(total_count: int,
+                      sample_count: int,
+                      sample_positive_count: int,
+                      alpha: float) -> float:
+    """
+    Calculates an upper bound for the total number of positive units. This is done by doing hypothesis tests, where
+    the hypothesis is tested whether k<=sample_positive_count is plausible for a certain K. Plausible means that the
+    probability is greater than alpha. Returns the smallest upper bound for K for which the resulting interval is
+    equal to or larger than 100*(1 - alpha).
+
+    Parameters
+    ----------
+    total_count: int
+        The total number of units.
+    sample_count: int
+        The size of the sample.
+    sample_positive_count: int
+        The number of positive units in the sample.
+    alpha: float
+        The desired value for alpha.
+
+    Returns
+    ----------
+    upper_bound: float
+        Upper bound for the total number of positive units. The upper bound is the upper bound of a one-sided
+        100*(1-alpha)-confidence interval.
+    """
+
+    # Calculate the hypergeometric cumulative distribution for positive units 0 to total_count.
+    cumulative_distribution_hyp = np.array([hypergeom.cdf(k=sample_positive_count, M=total_count,
+                                                          n=total_positive_count, N=sample_count)
+                                            for total_positive_count in range(0, total_count + 1)])
+    # Determine where the cumulative probability is greater than alpha.
+    upper_bound = int(np.max(np.where(cumulative_distribution_hyp > alpha)))
+
+    return upper_bound
+
+
 def draw_normal_mcmc_samples(observed_data: np.ndarray,
-                             mu_lower_bound: float,
-                             mu_upper_bound: float,
-                             sigma_lower_bound: float,
-                             sigma_upper_bound: float,
+                             mu_prior: str,
+                             sigma_prior: str,
                              sample_type: str,
                              output_folder: Path,
                              mcmc_rng: np.random.Generator = np.random.default_rng(),
                              mcmc_draw_count: int = 1000,
                              mcmc_chain_count: int = 4,
                              mcmc_tune_count: int = 1000,
+                             mcmc_prior_factor: float = 5.0,
+                             mcmc_target_accept: float = 0.8,
                              mcmc_save_posteriors: bool = False) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     """
     Perform MCMC simulation on observed data, resulting in draws from the posterior distribution(s) of the
@@ -76,14 +115,10 @@ def draw_normal_mcmc_samples(observed_data: np.ndarray,
     ----------
     observed_data: np.ndarray
         Observed data to base the MCMC analysis on.
-    mu_lower_bound: float
-        Lower bound of the prior distribution for mu.
-    mu_upper_bound: float
-        Upper bound of the prior distribution for mu.
-    sigma_lower_bound: float
-        Lower bound of the prior distribution for sigma.
-    sigma_upper_bound: float
-        Upper bound of the prior distribution for sigma.
+    mu_prior: str
+        Prior distribution for mu.
+    sigma_prior: str
+        Prior distribution for sigma.
     sample_type: str
         Type of samples that were taken, used as an extension to the filename of the posterior distribution
         of the MCMC simulation.
@@ -98,6 +133,11 @@ def draw_normal_mcmc_samples(observed_data: np.ndarray,
         The number of chains to sample, defaults to 4.
     mcmc_tune_count: int = 1000
         Number of iterations to tune, defaults to 1000.
+    mcmc_prior_factor: float = 5.0
+        Factor used to derive parameter values for prior distributions based on observed data, defaults to 5.
+        Higher values make the prior distributions broader and less informative.
+    mcmc_target_accept: float = 0.8
+        Value used by the NUTS-algorithm; between 0 and 1, defaults to 0.8. Increase in case of divergences.
     mcmc_save_posteriors: bool
         Whether to save a plot of the posterior distributions of the MCMC simulation.
 
@@ -112,15 +152,48 @@ def draw_normal_mcmc_samples(observed_data: np.ndarray,
             A Dataframe with MCMC-diagnostics (such as R_hat and ESS) for the two model parameters (mu and sigma).
     """
 
+    # Calculate values based on the observed data; they are used for the parameters of the prior distributions.
+    obs_mean = observed_data.mean()
+    obs_sigma = observed_data.std(ddof=1)
+    mu_lower_bound = obs_mean - obs_sigma * mcmc_prior_factor
+    mu_upper_bound = obs_mean + obs_sigma * mcmc_prior_factor
+    sigma_lower_bound = obs_sigma / mcmc_prior_factor
+    sigma_upper_bound = obs_sigma * mcmc_prior_factor
+
+    # Train the model using the observed data
     normal_model = pm.Model()
     with (normal_model):
-        # Train the model using the observed data
-        prior_mu = pm.Uniform('mu', mu_lower_bound, mu_upper_bound)
-        prior_sigma = pm.Uniform('sigma', sigma_lower_bound, sigma_upper_bound)
+        # Define the prior distributions for mu and sigma
+        match mu_prior:
+            case 'uniform':
+                prior_mu = pm.Uniform('mu', mu_lower_bound, mu_upper_bound)
+            case 'normal':
+                prior_mu = pm.Normal('mu', mu = obs_mean, sigma = sigma_upper_bound)
+            case _:
+                raise ValueError('Unsupported MCMC prior distribution defined for mu.')
+        match sigma_prior:
+            # For some specific distributions, numpy warnings sometimes occur due to overflow when calculating
+            # dot-products at the start of a chain. This warning is temporarily turned off.
+            case 'uniform':
+                prior_sigma = pm.Uniform('sigma', sigma_lower_bound, sigma_upper_bound)
+            case 'half-normal':
+                prior_sigma = pm.HalfNormal('sigma', sigma = sigma_upper_bound)
+                np.seterr(over='ignore')
+            case 'half-cauchy':
+                prior_sigma = pm.HalfCauchy('sigma', beta = sigma_upper_bound)
+            case 'exponential':
+                prior_sigma = pm.Exponential('sigma', scale = sigma_upper_bound)
+                np.seterr(over='ignore')
+            case _:
+                raise ValueError('Unsupported MCMC prior distribution defined for sigma.')
+
+        # Sample from the normal posterior distribution; make sure the overflow-warning is on again.
         pm.Normal('Y', mu=prior_mu, sigma=prior_sigma, observed=observed_data)
-        # Sample from the posterior distribution, return convergence and (if indicated) save plot
         normal_trace = pm.sample(mcmc_draw_count, cores=1, chains=mcmc_chain_count, tune=mcmc_tune_count,
-                                 random_seed=mcmc_rng, progressbar=False)
+                                 random_seed=mcmc_rng, progressbar=False, target_accept=mcmc_target_accept)
+        np.seterr(over='warn')
+
+        # Get diagnostic values on the MCMC-simulations, add info on fraction of samples that are 'close to a bound'.
         diagnostics = az.summary(normal_trace, var_names=['mu', 'sigma'], kind='diagnostics', round_to=4)
         diagnostics['sample_type'] = sample_type
 
@@ -137,20 +210,22 @@ def draw_normal_mcmc_samples(observed_data: np.ndarray,
         highest_1_pct_sigma = sigma_upper_bound - 0.01 * (sigma_upper_bound - sigma_lower_bound)
         fraction_highest_1_pct_sigma = np.count_nonzero(trace_sigma > highest_1_pct_sigma)/trace_count
 
-        diagnostics['fraction_extreme_upper'] = np.nan
-        diagnostics.loc['mu', 'fraction_extreme_upper'] = fraction_highest_1_pct_mu
-        diagnostics.loc['sigma', 'fraction_extreme_upper'] = fraction_highest_1_pct_sigma
-
         diagnostics['fraction_extreme_lower'] = np.nan
+        diagnostics['fraction_extreme_upper'] = np.nan
         diagnostics.loc['mu', 'fraction_extreme_lower'] = fraction_lowest_1_pct_mu
-        diagnostics.loc['sigma', 'fraction_extreme_lower'] = fraction_lowest_1_pct_sigma
+        diagnostics.loc['mu', 'fraction_extreme_upper'] = fraction_highest_1_pct_mu
+        if sigma_prior == 'uniform':
+            diagnostics.loc['sigma', 'fraction_extreme_lower'] = fraction_lowest_1_pct_sigma
+            diagnostics.loc['sigma', 'fraction_extreme_upper'] = fraction_highest_1_pct_sigma
 
+        # Optionally, save a plot of the parameter samples
         if mcmc_save_posteriors:
             print(diagnostics['r_hat'])
             axes = az.plot_trace(normal_trace)
             plt.savefig(os.path.join(output_folder, "posterior_normal_" + sample_type))
             plt.close()
 
+        # Clean the workspace
         del normal_model
         del normal_trace
         gc.collect()
@@ -237,3 +312,60 @@ def create_overview_results(results_dir: str) -> None:
     combined_df = pd.concat(df_list, ignore_index=True)
     combined_df.sort_values(by=['measurements', 'method', 'experiment'], inplace=True)
     combined_df.to_csv(results_dir + '/overview_all_results.csv')
+
+
+def read_yaml(filename: str):
+    """
+    Read the YAML file.
+    Parameters
+    ----------
+    filename: str
+        Filename of yaml to be read.
+
+    Return
+    -------
+    Yaml object, can be iterated over.
+    """
+    with open(filename, 'r') as f:
+        output = yaml.safe_load(f)
+    return output
+
+
+def create_yaml_files(parameter_settings_yaml: str,
+                      output_folder: str) -> None:
+    """
+    Create yaml files in directory 'output_folder'. These can be used in run.py to run different simulations.
+
+    Parameters
+    ----------
+    parameter_settings_yaml: str
+        Yaml file containing all parameter settings to be evaluated.
+    output_folder: str
+        Folder to save all yaml files in.
+
+    Return
+    -------
+    None
+    """
+
+    output_folder = Path(output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    parameter_settings = read_yaml(parameter_settings_yaml)
+    for key, value in parameter_settings.items():
+        for parameter_setting in value:
+            with open(f'{output_folder}/{key}_{parameter_setting}.yaml', 'w') as yaml_file:
+                yaml.dump({key: parameter_setting,
+                           'experiment': f'{key}_{parameter_setting}'},
+                          yaml_file)
+
+
+def copy_yaml_files(yaml_folder, number_of_copies: int):
+    """Make multiple copies of all yaml files in a folder. Useful when single yamls take too long."""
+    # Find the yaml files
+    all_yamls = yaml_folder.rglob("*.yaml")
+    for yaml in all_yamls:
+        for i_copy in range(number_of_copies):
+            file_name = yaml.parent / f'{i_copy+1:02d}-{yaml.name}'
+            shutil.copyfile(yaml, file_name)
+        os.remove(yaml)
